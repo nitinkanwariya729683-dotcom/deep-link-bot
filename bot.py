@@ -1,4 +1,8 @@
 import logging
+import threading
+import os
+from flask import Flask
+
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -20,7 +24,6 @@ logging.basicConfig(
     level=logging.ERROR
 )
 
-# Silence other libraries completely
 logging.getLogger("httpx").setLevel(logging.CRITICAL)
 logging.getLogger("apscheduler").setLevel(logging.CRITICAL)
 logging.getLogger("telegram").setLevel(logging.CRITICAL)
@@ -35,20 +38,17 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
 
     try:
-        # Copy message from private channel
         sent_msg = await context.bot.copy_message(
             chat_id=chat_id,
             from_chat_id=PRIVATE_CHANNEL_ID,
             message_id=int(channel_message_id)
         )
 
-        # Send warning message
         await context.bot.send_message(
             chat_id,
             "⚠️ Ye file 30 minute baad delete kar di jayegi 🫶"
         )
 
-        # Schedule deletion of copied media
         context.job_queue.run_once(
             delete_message,
             DELETE_TIME,
@@ -85,12 +85,26 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"✅ Media Saved Successfully!\n\n🔗 Deep Link:\n{deep_link}"
     )
 
+# ================= FLASK PORT FIX FOR RENDER =================
+def start_web_server():
+    web_app = Flask(__name__)
+
+    @web_app.route("/")
+    def home():
+        return "Bot is running!"
+
+    port = int(os.environ.get("PORT", 10000))
+    web_app.run(host="0.0.0.0", port=port)
+
 # ================= MAIN =================
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start_handler))
     app.add_handler(MessageHandler(filters.ChatType.CHANNEL, handle_channel_post))
+
+    # Start Flask in separate thread (Render ke liye)
+    threading.Thread(target=start_web_server).start()
 
     print("Bot Started Successfully ✅")
     app.run_polling()
