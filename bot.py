@@ -13,15 +13,15 @@ from telegram.ext import (
 )
 from telegram.error import BadRequest
 
-# ==================== YOUR BOT TOKEN ====================
+# ==================== CONFIG ====================
 TOKEN = "8281770546:AAEsYcyUgMoQ9SJKc5uu-JS9hKgcc2BtoT4"
-DELETE_TIME = 1800  # 30 minutes
-PRIVATE_CHANNEL_ID = -1003708551873  # Your private channel ID
+DELETE_TIME = 1800  # 30 minutes (test ke liye 60 kar sakte ho)
+PRIVATE_CHANNEL_ID = -1003708551873
 
-# ====== ONLY ERROR LOGGING (No Spam in CMD) ======
+# ================= LOGGING =================
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
-    level=logging.ERROR
+    level=logging.INFO
 )
 
 logging.getLogger("httpx").setLevel(logging.CRITICAL)
@@ -49,6 +49,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⚠️ Ye file 30 minute baad delete kar di jayegi 🫶"
         )
 
+        # Schedule delete
         context.job_queue.run_once(
             delete_message,
             DELETE_TIME,
@@ -85,8 +86,8 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"✅ Media Saved Successfully!\n\n🔗 Deep Link:\n{deep_link}"
     )
 
-# ================= FLASK PORT FIX FOR RENDER =================
-def start_web_server():
+# ================= FLASK SERVER FOR RENDER =================
+def run_web_server():
     web_app = Flask(__name__)
 
     @web_app.route("/")
@@ -100,13 +101,19 @@ def start_web_server():
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
+    # Ensure JobQueue exists
+    if app.job_queue is None:
+        print("❌ JobQueue NOT initialized")
+    else:
+        print("✅ JobQueue initialized")
+
     app.add_handler(CommandHandler("start", start_handler))
     app.add_handler(MessageHandler(filters.ChatType.CHANNEL, handle_channel_post))
 
-    # Start Flask in separate thread (Render ke liye)
-    threading.Thread(target=start_web_server).start()
+    # Start Flask in background thread
+    threading.Thread(target=run_web_server).start()
 
-    print("Bot Started Successfully ✅")
+    print("🚀 Bot Started Successfully")
     app.run_polling()
 
 if __name__ == "__main__":
